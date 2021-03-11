@@ -26,7 +26,7 @@ public class Steganography {
         inputWav.read(wav_header, 0, WAV_HEADER_SIZE); //Считываем инофрмацию до chunk DataSize включительно
 
         //Размер данных
-        int data_size = ByteBuffer.wrap(wav_header, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt(); //Размер чанка Data
+        int data_size = ByteBuffer.wrap(wav_header, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt() - 4; //Размер чанка Data
         int text_len = messageFile.available(); // Размер сообщения
 
         // Проверка на то помещается ли сообщение в чанк Data
@@ -41,15 +41,15 @@ public class Steganography {
         outputWav.write(wav_header);
 
 
-//        //Записывем размер сообщения в WAV
-//        byte[] messageByte = ByteBuffer.wrap(BigInteger.valueOf(text_len).toByteArray()).order(ByteOrder.LITTLE_ENDIAN).array();
-//        byte[] messageSize = new byte[4];
-//        for (int i = 0, j = messageByte.length - 1; i < messageSize.length; i++, j--) {
-//            messageSize[i] = 0;
-//            if (j >= 0)
-//                messageSize[i] = messageByte[j];
-//        }
-//        outputWav.write(messageSize);
+        //Записывем размер сообщения в WAV
+        byte[] messageByte = ByteBuffer.wrap(BigInteger.valueOf(text_len).toByteArray()).order(ByteOrder.LITTLE_ENDIAN).array();
+        byte[] messageSize = new byte[4];
+        for (int i = 0, j = messageByte.length - 1; i < messageSize.length; i++, j--) {
+            messageSize[i] = 0;
+            if (j >= 0)
+                messageSize[i] = messageByte[j];
+        }
+        outputWav.write(messageSize);
 
 
         byte[] data = new byte[data_size];
@@ -59,14 +59,14 @@ public class Steganography {
         int text_mask = createMaskText(degree);
         int sample_mask = createMaskSample(degree);
 
-        int ired = 0;
+//        int ired = 0;
         // Запись сообщения в WAV
         while (true) {
 
-            ired++;
-            if (ired == 4175) {
-                System.out.println("sds");
-            }
+//            ired++;
+//            if (ired == 4175) {
+//                System.out.println("sds");
+//            }
             byte[] txt_symbol = new byte[1];
             messageFile.read(txt_symbol, 0, 1); // Считываем 1 символ сообщения
 
@@ -152,7 +152,7 @@ public class Steganography {
 
         //Размер данных
         int data_size = ByteBuffer.wrap(wav_header, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt() - 4; //Размер чанка Data
-        int text_len = ByteBuffer.wrap(text_size, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt(); //Размер чанка MessageSize
+        int text_len = ByteBuffer.wrap(text_size, 0, 4).order(ByteOrder.LITTLE_ENDIAN).getInt() * wBitsPerSample / degree; //Размер чанка MessageSize
 
 //        // Проверка на то помещается ли сообщение в чанк Data
 //        if (text_len > data_size * degree / wBitsPerSample) {
@@ -169,9 +169,12 @@ public class Steganography {
         int sample_mask = ~createMaskSample(degree);
 
         int read = 0;
-        while (read < text_len) {
+        while (read * wBitsPerSample / degree < text_len) {
             int two_symbols = 0;
             for (int i = 0; i < 16; i += degree) {
+                if (data.length == 8) {
+                    System.out.println("a");
+                }
                 int sample = new BigInteger(Integer.toHexString(data[1]) + Integer.toHexString(data[0]), 16).intValue() & sample_mask;
                 data = Arrays.copyOfRange(data, 2, data.length);// Удаляем из массива данных 2 первых байта
 
