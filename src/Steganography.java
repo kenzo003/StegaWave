@@ -26,7 +26,7 @@ public class Steganography {
         inputWav.read(wav_header, 0, WAV_HEADER_SIZE); //Считываем инофрмацию до chunk DataSize включительно
 
         //Размер данных
-        int data_size = ByteBuffer.wrap(wav_header, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt() - 4; //Размер чанка Data
+        int data_size = ByteBuffer.wrap(wav_header, 40, 4).order(ByteOrder.LITTLE_ENDIAN).getInt(); //Размер чанка Data
         int text_len = messageFile.available(); // Размер сообщения
 
         // Проверка на то помещается ли сообщение в чанк Data
@@ -41,15 +41,15 @@ public class Steganography {
         outputWav.write(wav_header);
 
 
-        //Записывем размер сообщения в WAV
-        byte[] messageByte = ByteBuffer.wrap(BigInteger.valueOf(text_len).toByteArray()).order(ByteOrder.LITTLE_ENDIAN).array();
-        byte[] messageSize = new byte[4];
-        for (int i = 0, j = messageByte.length - 1; i < messageSize.length; i++, j--) {
-            messageSize[i] = 0;
-            if (j >= 0)
-                messageSize[i] = messageByte[j];
-        }
-        outputWav.write(messageSize);
+//        //Записывем размер сообщения в WAV
+//        byte[] messageByte = ByteBuffer.wrap(BigInteger.valueOf(text_len).toByteArray()).order(ByteOrder.LITTLE_ENDIAN).array();
+//        byte[] messageSize = new byte[4];
+//        for (int i = 0, j = messageByte.length - 1; i < messageSize.length; i++, j--) {
+//            messageSize[i] = 0;
+//            if (j >= 0)
+//                messageSize[i] = messageByte[j];
+//        }
+//        outputWav.write(messageSize);
 
 
         byte[] data = new byte[data_size];
@@ -59,9 +59,14 @@ public class Steganography {
         int text_mask = createMaskText(degree);
         int sample_mask = createMaskSample(degree);
 
+        int ired = 0;
         // Запись сообщения в WAV
         while (true) {
 
+            ired++;
+            if (ired == 4175) {
+                System.out.println("sds");
+            }
             byte[] txt_symbol = new byte[1];
             messageFile.read(txt_symbol, 0, 1); // Считываем 1 символ сообщения
 
@@ -88,20 +93,27 @@ public class Steganography {
                 txt_ascii |= another_ascii;
             }
 
-
             //Помещаем символы в сэмпл
             for (int i = 0; i < 16; i += degree) {
-                if (i == 0 && txt_symbol[0] == 0)
+                if (i == 8 && txt_ascii == 0)
                     break;
+
                 // Считываем данные сэмпла
-                int sample = new BigInteger(Integer.toHexString(data[1]) + Integer.toHexString(data[0]), 16).intValue() & sample_mask;
+                int sample = new BigInteger(toHex(data[1]) + toHex(data[0]), 16).intValue() & sample_mask;
                 data = Arrays.copyOfRange(data, 2, data.length);// Удаляем из массива данных 2 первых байта
 
                 int bits = txt_ascii & text_mask;
                 bits >>= (16 - degree);
 
                 sample |= bits;
-                byte[] temp = BigInteger.valueOf(sample).toByteArray();
+                byte[] temp = {0, 0};
+                if (sample > 127) {
+                    temp[1] = BigInteger.valueOf(sample).toByteArray()[BigInteger.valueOf(sample).toByteArray().length - 1];
+                    temp[0] = BigInteger.valueOf(sample).toByteArray()[BigInteger.valueOf(sample).toByteArray().length - 2];
+                } else
+                    temp[1] = BigInteger.valueOf(sample).toByteArray()[BigInteger.valueOf(sample).toByteArray().length - 1];
+                //temp[1] = BigInteger.valueOf(sample).toByteArray()[0];
+
 
                 byte[] sampl = {temp[1], temp[0]};
                 outputWav.write(sampl);
@@ -111,7 +123,9 @@ public class Steganography {
 
         //Записываем оставшиеся данные
         outputWav.write(data);
-        outputWav.write(inputWav.read());
+        byte[] last_data = new byte[inputWav.available()];
+        inputWav.read(last_data);
+        outputWav.write(last_data);
 
         inputWav.close();
         messageFile.close();
@@ -198,6 +212,33 @@ public class Steganography {
         sample_mask >>= degree;
         sample_mask <<= degree;
         return sample_mask;
+    }
+
+    public static String toHex(int value) {
+        if (value < 0) {
+            if (value == -128) {
+                value = Integer.valueOf("10000001", 2);
+                return Integer.toString(value, 16);
+            }
+            value = Math.abs(value) + 0b10000000;
+            String valueHex = Integer.toBinaryString(value);
+            StringBuffer valueHexReverse = new StringBuffer();
+            valueHexReverse.append("1");
+
+            for (int i = 1; i < valueHex.length(); i++) {
+                if (valueHex.charAt(i) == '0') {
+                    valueHexReverse.append("1");
+                } else {
+                    valueHexReverse.append("0");
+                }
+            }
+            value = Integer.valueOf(valueHexReverse.toString(), 2) + 1;
+            return Integer.toString(value, 16);
+        } else {
+            if (Integer.toHexString(value).length() == 1)
+                return "0" + Integer.toHexString(value);
+            return Integer.toHexString(value);
+        }
     }
 }
 

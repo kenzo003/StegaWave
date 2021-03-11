@@ -3,6 +3,7 @@ import java.util.Scanner;
 
 public class Test {
     public static void main(String[] args) throws IOException {
+        Steganography.toHex(-2);
         int option = 0;
         Scanner scanner = new Scanner(System.in);
         // Steganography steg = new Steganography();
