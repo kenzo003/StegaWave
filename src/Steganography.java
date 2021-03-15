@@ -11,11 +11,44 @@ public class Steganography {
     static final int wBitsPerSample = 16;
     static final int WAV_HEADER_SIZE = 44;
 
+    private static boolean isValid(String fileName) throws IOException {
+        FileInputStream file = new FileInputStream(fileName);
+        boolean valid = true;
+
+        byte wav_header[] = new byte[WAV_HEADER_SIZE]; //chunkRIFF
+        file.read(wav_header, 0, WAV_HEADER_SIZE); //Считываем инофрмацию до chunk DataSize включительно
+        int audioFormat = ByteBuffer.wrap(wav_header, 20, 2).order(ByteOrder.LITTLE_ENDIAN).get(); //Размер чанка Data
+        int numChannels = ByteBuffer.wrap(wav_header, 22, 2).order(ByteOrder.LITTLE_ENDIAN).get(); //Размер чанка Data
+        int bitsPerSample = ByteBuffer.wrap(wav_header, 34, 2).order(ByteOrder.LITTLE_ENDIAN).get(); //Размер чанка Data
+
+        if (numChannels != 2) {
+            System.out.println("The audio file must be stereo");
+            valid = false;
+        }
+        if (audioFormat != 1) {
+            System.out.println("The audio file must be in PCM format");
+            valid = false;
+        }
+        if (bitsPerSample != 16) {
+            System.out.println("The number of bits in the sample must be 16");
+            valid = false;
+        }
+
+        file.close();
+        return valid;
+    }
+
     public static boolean encrypt(String inputWavName, String outputWavName, String messageFileName, int degree) throws IOException {
+
         if (degree != 2 && degree != 4 && degree != 8 && degree != 16 && degree != 1) {
             System.out.println("Degree value can be only 1/2/4/8/16");
             return false;
         }
+
+        if (!isValid(inputWavName)) {
+            return false;
+        }
+
 
         // Исходные Файлы
         FileInputStream inputWav = new FileInputStream(inputWavName); // Wav encoding
@@ -62,11 +95,6 @@ public class Steganography {
 //        int ired = 0;
         // Запись сообщения в WAV
         while (true) {
-
-//            ired++;
-//            if (ired == 4175) {
-//                System.out.println("sds");
-//            }
             byte[] txt_symbol = new byte[1];
             messageFile.read(txt_symbol, 0, 1); // Считываем 1 символ сообщения
 
@@ -171,10 +199,13 @@ public class Steganography {
         int read = 0;
         while (read * wBitsPerSample / degree < text_len) {
             int two_symbols = 0;
+
+            if (read == 4930) {
+                System.out.println(read);
+            }
             for (int i = 0; i < 16; i += degree) {
-                if (data.length == 8) {
-                    System.out.println("a");
-                }
+                if (data.length == 0)
+                    break;
                 int sample = new BigInteger(Integer.toHexString(data[1]) + Integer.toHexString(data[0]), 16).intValue() & sample_mask;
                 data = Arrays.copyOfRange(data, 2, data.length);// Удаляем из массива данных 2 первых байта
 
@@ -188,7 +219,7 @@ public class Steganography {
             if ((char) first_symbol == '\n' && System.lineSeparator().length() == 2) {
                 read += 1;
             }
-            if (text_len - read > 0) {
+            if (text_len - read * wBitsPerSample / degree > 0) {
                 int second_symbols = two_symbols & 0b0000000011111111;
                 messageFileDecoded.write((char) second_symbols);
                 read += 1;
